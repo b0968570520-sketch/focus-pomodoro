@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusPulse - 番茄鐘與任務管理</title>
+    <style>
+        :root {
+            --primary: #ff6b6b;
+            --primary-rest: #4ecdc4;
+            --bg: #f7f9fc;
+            --card-bg: #ffffff;
+            --text: #2d3436;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.8rem;
+            color: #333;
+        }
+
+        .mode-switch {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .mode-btn {
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            background: #eee;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .timer-display {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+
+        .controls button {
+            border: none;
+            padding: 12px 24px;
+            margin: 0 5px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn-start { background: var(--primary); color: white; }
+        .btn-reset { background: #e0e0e0; color: #333; }
+        .controls button:hover { opacity: 0.85; }
+
+        .stat-box {
+            margin-top: 20px;
+            font-size: 0.95rem;
+            color: #666;
+        }
+
+        .todo-section {
+            margin-top: 30px;
+            text-align: left;
+            border-top: 2px solid #f0f0f0;
+            padding-top: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        .btn-add {
+            background: #2ed573;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            margin-bottom: 8px;
+            border-radius: 6px;
+        }
+
+        li.completed {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .delete-btn {
+            color: #ff4757;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            background: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🍅 FocusPulse 番茄鐘</h1>
+
+    <div class="mode-switch">
+        <button class="mode-btn active" id="workMode" onclick="setMode('work')">專注 (25m)</button>
+        <button class="mode-btn" id="restMode" onclick="setMode('rest')">休息 (5m)</button>
+    </div>
+
+    <div class="timer-display" id="timer">25:00</div>
+
+    <div class="controls">
+        <button class="btn-start" id="startBtn" onclick="toggleTimer()">開始</button>
+        <button class="btn-reset" onclick="resetTimer()">重置</button>
+    </div>
+
+    <div class="stat-box">
+        今日已完成專注：<span id="completedCount">0</span> 個番茄鐘
+    </div>
+
+    <div class="todo-section">
+        <h3>📋 今日待辦事項</h3>
+        <div class="input-group">
+            <input type="text" id="taskInput" placeholder="新增專注任務...">
+            <button class="btn-add" onclick="addTask()">新增</button>
+        </div>
+        <ul id="taskList"></ul>
+    </div>
+</div>
+
+<script>
+    let timer;
+    let timeLeft = 25 * 60;
+    let isRunning = false;
+    let currentMode = 'work';
+    let completedPomodoros = 0;
+
+    const timerDisplay = document.getElementById('timer');
+    const startBtn = document.getElementById('startBtn');
+    const completedCountDisplay = document.getElementById('completedCount');
+
+    function updateDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function toggleTimer() {
+        if (isRunning) {
+            clearInterval(timer);
+            startBtn.textContent = '繼續';
+            isRunning = false;
+        } else {
+            isRunning = true;
+            startBtn.textContent = '暫停';
+            timer = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateDisplay();
+                } else {
+                    clearInterval(timer);
+                    isRunning = false;
+                    alert(currentMode === 'work' ? '🎉 專注時間結束！休息一下吧！' : '💪 休息結束，準備開始專注！');
+                    if (currentMode === 'work') {
+                        completedPomodoros++;
+                        completedCountDisplay.textContent = completedPomodoros;
+                    }
+                    resetTimer();
+                }
+            }, 1000);
+        }
+    }
+
+    function resetTimer() {
+        clearInterval(timer);
+        isRunning = false;
+        startBtn.textContent = '開始';
+        timeLeft = currentMode === 'work' ? 25 * 60 : 5 * 60;
+        updateDisplay();
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('workMode').classList.toggle('active', mode === 'work');
+        document.getElementById('restMode').classList.toggle('active', mode === 'rest');
+        document.documentElement.style.setProperty('--primary', mode === 'work' ? '#ff6b6b' : '#4ecdc4');
+        resetTimer();
+    }
+
+    function addTask() {
+        const input = document.getElementById('taskInput');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span onclick="this.parentElement.classList.toggle('completed')">${text}</span>
+            <button class="delete-btn" onclick="this.parentElement.remove()">✕</button>
+        `;
+        document.getElementById('taskList').appendChild(li);
+        input.value = '';
+    }
+</script>
+
+</body>
+</html>
